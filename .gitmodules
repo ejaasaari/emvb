@@ -7,3 +7,6 @@
 [submodule "external/cmd_line_parser"]
 	path = external/cmd_line_parser
 	url = https://github.com/jermp/cmd_line_parser.git
+[submodule "external/pybind11"]
+	path = external/pybind11
+	url = https://github.com/pybind/pybind11.git

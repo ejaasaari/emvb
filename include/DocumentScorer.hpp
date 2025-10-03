@@ -5,6 +5,8 @@
 #include <fstream>
 #include <algorithm>
 #include <tuple>
+#include <iostream>
+#include <cnpy.h>
 #include "utils.cpp"
 #include <random>
 #include <cstring>
@@ -13,6 +15,7 @@
 #include "mkl.h"
 #include <immintrin.h>
 #include <filesystem>
+#include <iterator>
 #include "Heap.hpp"
 using namespace std;
 using namespace cnpy;
@@ -165,12 +168,12 @@ public:
 
     /// Starting functions for phase 1.
 
-    vector<float> compute_query_centroids_distances(const float *queries_data, const globalIdxType q_start)
+    vector<float> compute_query_centroids_distances(const float *query)
     {
         vector<float> current_scores(M * n_centroids);
         int N = n_centroids;
-        // dnnl_sgemm('N', 'T', M, N, K, alpha, queries_data + q_start, K, centroids, K, beta, current_scores.data(), N);
-        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, K, alpha, queries_data + q_start, K, centroids, K, beta, current_scores.data(), N);
+        // dnnl_sgemm('N', 'T', M, N, K, alpha, query, K, centroids, K, beta, current_scores.data(), N);
+        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, M, N, K, alpha, query, K, centroids, K, beta, current_scores.data(), N);
 
         return current_scores;
     }
@@ -227,9 +230,9 @@ public:
   
 
     vector<numDocsType>
-    find_candidate_docs(const float *queries_data, const globalIdxType q_start, const size_t nprobe, const float th)
+    find_candidate_docs(const float *query, const size_t nprobe, const float th)
     {
-        centroids_scores = compute_query_centroids_distances(queries_data, q_start);
+        centroids_scores = compute_query_centroids_distances(query);
 
         vector<size_t> closest_centroids_ids;
         closest_centroids_ids.reserve(nprobe * M);
@@ -362,7 +365,7 @@ public:
     /// Ending functions for phase 2.
 
     /// Starting functions for phase 3.
-    inline vector<float> compute_ip_with_centroids(const float *queries, const numDocsType doc_id)
+    inline vector<float> compute_ip_with_centroids(const numDocsType doc_id)
     {
 
         auto doclen = all_doclens[doc_id];
@@ -453,7 +456,7 @@ public:
         return sum;
     }
 
-    vector<numDocsType> second_stage_filtering(const float *queries_data, const globalIdxType q_start, const vector<numDocsType> &doc_ids, const size_t n_documents)
+    vector<numDocsType> second_stage_filtering(const vector<numDocsType> &doc_ids, const size_t n_documents)
     {
         transpose_centroids_scores_mkl_oplace();
         priority_queue<tuple<numDocsType, valType>, vector<tuple<numDocsType, valType>>, Compare> min_heap;
@@ -466,7 +469,7 @@ public:
             auto doclen = all_doclens[doc_id];
             //auto doc_offset = doc_offsets[doc_id];
 
-            auto centroid_distances = compute_ip_with_centroids(queries_data + q_start, doc_id);
+            auto centroid_distances = compute_ip_with_centroids(doc_id);
 
             auto score = compute_score_by_column_reduction_optimal(centroid_distances, doclen, M);
             // TODO: here, replace with heap (Maybe)
@@ -508,12 +511,12 @@ public:
 
     /// Starting functions for phase 4.
 
-    priority_queue<tuple<numDocsType, valType>, vector<tuple<numDocsType, valType>>, Compare> compute_topk_documents(const float *queries_data, const globalIdxType q_start, const vector<numDocsType> &doc_ids, const size_t k)
+    priority_queue<tuple<numDocsType, valType>, vector<tuple<numDocsType, valType>>, Compare> compute_topk_documents(const float *query, const vector<numDocsType> &doc_ids, const size_t k)
     {
         priority_queue<tuple<numDocsType, valType>, vector<tuple<numDocsType, valType>>, Compare> min_heap;
         // auto heap = HeapFloats(k);
 
-        pq.precompute_distance_table(queries_data + q_start, M);
+        pq.precompute_distance_table(query, M);
 
         for (numDocsType doc_id : doc_ids)
         {
@@ -562,10 +565,10 @@ public:
         return min_heap;
     }
 
-    vector<tuple<size_t, float>> compute_topk_documents_2(const float *queries_data, const globalIdxType q_start, const vector<numDocsType> &doc_ids, const size_t k)
+    vector<tuple<size_t, float>> compute_topk_documents_2(const float *query, const vector<numDocsType> &doc_ids, const size_t k)
     {
         auto heap = HeapFloats(k);
-        pq.precompute_distance_table(queries_data + q_start, M);
+        pq.precompute_distance_table(query, M);
 
         for (numDocsType doc_id : doc_ids)
         {
@@ -658,10 +661,10 @@ public:
         return current_buffer;
     }
 
-    vector<tuple<size_t, float>> compute_topk_documents_selected(const float *queries_data, const globalIdxType q_start, const vector<numDocsType> &doc_ids, const size_t k, const float th)
+    vector<tuple<size_t, float>> compute_topk_documents_selected(const float *query, const vector<numDocsType> &doc_ids, const size_t k, const float th)
     {
         auto heap = HeapFloats(k);
-        pq.precompute_distance_table(queries_data + q_start, M);
+        pq.precompute_distance_table(query, M);
 
         for (numDocsType doc_id : doc_ids)
         {

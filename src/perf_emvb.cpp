@@ -96,19 +96,20 @@ int main(int argc, char **argv)
     {
         auto start = chrono::high_resolution_clock::now();
         globalIdxType q_start = query_id * values_per_query;
+        const float *query = loaded_query_data + q_start;
 
         // PHASE 1: candidate documents retrieval
-        auto candidate_docs = document_scorer.find_candidate_docs(loaded_query_data, q_start, nprobe, thresh);
+        auto candidate_docs = document_scorer.find_candidate_docs(query, nprobe, thresh);
 
 
         // PHASE 2: candidate document filtering
         auto selected_docs = document_scorer.compute_hit_frequency(candidate_docs, thresh, n_doc_to_score);
 
         //  PHASE 3: second stage filtering
-        auto selected_docs_2nd = document_scorer.second_stage_filtering(loaded_query_data, q_start, selected_docs, out_second_stage);
+        auto selected_docs_2nd = document_scorer.second_stage_filtering(selected_docs, out_second_stage);
 
         // PHASE 4: document scoring
-        auto query_res = document_scorer.compute_topk_documents_selected(loaded_query_data, q_start, selected_docs_2nd, k, thresh_query);
+        auto query_res = document_scorer.compute_topk_documents_selected(query, selected_docs_2nd, k, thresh_query);
 
         auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start).count();
         total_time += elapsed;

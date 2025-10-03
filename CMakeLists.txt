@@ -71,7 +71,13 @@ include_directories(${PROJECT_SOURCE_DIR}/external/cnpy)
 add_subdirectory(external/cmd_line_parser)
 include_directories(${PROJECT_SOURCE_DIR}/external/cmd_line_parser)
 
+add_subdirectory(external/pybind11)
 
 add_executable(perf_emvb src/perf_emvb.cpp)
-target_link_libraries(perf_emvb cnpy faiss $<LINK_ONLY:MKL::MKL>)
+target_link_libraries(perf_emvb cnpy faiss MKL::MKL)
 target_include_directories(perf_emvb PRIVATE include)
+
+# Python bindings
+pybind11_add_module(emvb src/python_bindings.cpp)
+target_link_libraries(emvb PRIVATE cnpy faiss MKL::MKL)
+target_include_directories(emvb PRIVATE include)
